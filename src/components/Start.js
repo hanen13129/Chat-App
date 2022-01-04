@@ -4,17 +4,16 @@ import {
   StyleSheet,
   Text,
   View,
-  Button,
+  LogBox,
   Image,
   Pressable,
 } from "react-native";
-import { TextInput, TouchableOpacity } from "react-native-gesture-handler";
 
+import { TextInput, TouchableOpacity } from "react-native-gesture-handler";
 //importing images
 import bgImage from "../assets/images/bkg-img.png";
 import logo from "../assets/images/texter-logo.png";
 import Icon from "react-native-vector-icons/FontAwesome";
-
 class Start extends Component {
   state = {
     name: "",
@@ -23,13 +22,18 @@ class Start extends Component {
   changeBgColor = (newColor) => {
     this.setState({ bgColor: newColor });
   };
-//background color choices
+  //background color choices
   colors = {
     beige: "#f5f5dc",
     grey: "#474056",
     lightBlue: "#8A95A5",
     lightGreen: "#B9C6AE",
   };
+
+  componentDidMount() {
+    LogBox.ignoreAllLogs();
+  }
+
   render() {
     return (
       <View style={styles.container}>
