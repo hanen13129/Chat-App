@@ -12,6 +12,7 @@ Texter is a mobile device communication application. It was developed using Reac
 - [Gifted Chat](https://github.com/hanen13129/hello-world)
 - [React Native](https://reactnative.dev/)
 - [Expo](https://expo.dev/)
+- [Demo](https://hanen13129.github.io/hello-world/)
 ## Installation
 ### Pre reqs
 - Node and npm ([installation steps](https://nodejs.org/en/download/))
