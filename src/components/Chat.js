@@ -6,7 +6,6 @@ import {
   View,
   Platform,
   KeyboardAvoidingView,
-
 } from "react-native";
 import {
   Bubble,
@@ -15,12 +14,12 @@ import {
   Day,
   InputToolbar,
 } from "react-native-gifted-chat";
-
+import MapView from "react-native-maps";
+import CustomActions from "./CustomActions";
 import firebase from "firebase";
 import "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
-
 const firebaseConfig = {
   apiKey: "AIzaSyAw381AzNbxpGP6oPxjbZSFKY-QIY3zyT0",
   authDomain: "chatapp-8808c.firebaseapp.com",
@@ -28,12 +27,11 @@ const firebaseConfig = {
   storageBucket: "chatapp-8808c.appspot.com",
   messagingSenderId: "1095391205641",
   appId: "1:1095391205641:web:d5a8da23d5df6ebdda9bd8"
-
 };
 /**
  * The Chat class renders the screen where the chat happens
  */
-class Chat extends Component {
+ class Chat extends Component {
   constructor() {
     super();
     this.state = {
@@ -45,6 +43,8 @@ class Chat extends Component {
         avatar: "",
       },
       isConnected: false,
+      location: null,
+      image: null,
     };
 
     //initializing firebase
@@ -55,32 +55,32 @@ class Chat extends Component {
     //register for updates
     this.refMessages = firebase.firestore().collection("messages");
     this.refMsgsUser = null;
-
   }
+
   /**
-   * Lifecycle method to make sure that the component mounted
-   * before the options of the current screen are set
+   * Lifecycle method that runs when the component is mounted
    */
-   componentDidMount() {
+  componentDidMount() {
     //get user name from start screen
     const { name } = this.props.route.params;
     //setting up the screen title
     this.props.navigation.setOptions({ title: name ? name : "Anonymous" });
 
+    //check if device is online
     NetInfo.fetch().then((connection) => {
       if (connection.isConnected) {
         this.setState({ isConnected: true });
-
         //referencing message collection
         this.unsubscribe = this.refMessages
           .orderBy("createdAt", "desc")
           .onSnapshot(this.onCollectionUpdate);
 
+        //authentication
         this.authUnsubscribe = firebase.auth().onAuthStateChanged((user) => {
           if (!user) {
             firebase.auth().signInAnonymously();
-          }
 
+          }
           this.setState({
             uid: user.uid,
             messages: [],
@@ -90,7 +90,6 @@ class Chat extends Component {
               avatar: "https://placeimg.com/140/140/any",
             },
           });
-
           //referencing messages of current user
           this.refMsgsUser = firebase
             .firestore()
@@ -101,11 +100,12 @@ class Chat extends Component {
         this.saveMessages();
       } else {
         this.setState({ isConnected: false });
+        //obtaining messages from asyncStorage
         this.getMessages();
       }
     });
 
-    //setting up system message with name of the user when they join the convo
+    //setting up system message with name of the user when they join the conversation
     const systemMsg = {
       _id: `sys-${Math.floor(Math.random() * 100000)}`,
       text: `${name ? name : "Anonymous"} joined the conversation 👋`,
@@ -114,15 +114,18 @@ class Chat extends Component {
     };
     this.refMessages.add(systemMsg);
   }
+
   /**
-   * Lifecycle method used to unsubsribe from updates and authentications
-   * when component unmounts
+   * Lifecycle method that runs when component unmounts
    */
   componentWillUnmount() {
     const { name } = this.props.route.params;
+
+    //unsubscribe from firestore updates
     this.authUnsubscribe();
     this.unsubscribe();
 
+    //setting up system message with name of the user when they leave the conversation
     const systemMsg = {
       _id: `sys-${Math.floor(Math.random() * 100000)}`,
       text: `${name ? name : "Anonymous"} left the conversation 👋`,
@@ -131,11 +134,10 @@ class Chat extends Component {
     };
     this.refMessages.add(systemMsg);
   }
-
   /**
-
    * Updates the state when a new message with the snapshot
    * @param {*} snapshot
+   * @function onCollectionUpdate
    */
   onCollectionUpdate = (snapshot) => {
     const messages = [];
@@ -147,6 +149,8 @@ class Chat extends Component {
         text: data.text || "",
         system: data.system,
         user: data.user,
+        image: data.image,
+        location: data.location,
       });
     });
     this.setState({ messages });
@@ -154,6 +158,8 @@ class Chat extends Component {
 
   /**
    * Retrieves messages from AsyncStorage
+   * @function getMessages
+   * @async
    */
   getMessages = async () => {
     let msg = "";
@@ -169,10 +175,12 @@ class Chat extends Component {
 
   /**
    * Saves messages to AsyncStorage
+   * @function saveMessages
+   * @async
    */
   saveMessages = async () => {
     try {
-      await AsyncStorage.setItem(
+        await AsyncStorage.setItem(
         "messages",
         JSON.stringify(this.state.messages)
       );
@@ -181,9 +189,15 @@ class Chat extends Component {
     }
   };
 
+  /**
+   * Deletes messages from AsyncStorage
+   * @function deleteMessages
+   * @async
+   */
   deleteMessages = async () => {
     try {
       await AsyncStorage.removeItem("messages");
+  
       this.setState({
         messages: [],
       });
@@ -194,23 +208,29 @@ class Chat extends Component {
 
   /**
    * Uploads a new message to the Firebase DB
+   * @function uploadMessage
    */
   uploadMessage = () => {
     const msg = this.state.messages[0];
     this.refMessages.add({
       uid: this.state.uid,
       _id: msg._id,
-      text: msg.text,
+      text: msg.text || "",
       createdAt: msg.createdAt,
       user: this.state.user,
+      image: msg.image || "",
+      location: msg.location || null,
     });
   };
+
   /**
    * Updates the state by appending the last sent message to the rest
    * @param {*} messages the sent message
+   * @function onSend
    */
   onSend(messages = []) {
     this.setState(
+
       (previousState) => ({
         messages: GiftedChat.append(previousState.messages, messages),
       }),
@@ -223,9 +243,11 @@ class Chat extends Component {
 
   /**
    * Renderes a customized chat bubble
+   * @function renderBubble
    * @param {*} props
    * @returns a JSX element that rapresents a text bubble with custon bg color
    */
+
   renderBubble(props) {
     return (
       <Bubble
@@ -241,25 +263,31 @@ class Chat extends Component {
       />
     );
   }
+
   /**
    * Renders a customized system message
+   * @function renderSystemMessage
    * @param {*} props
    * @returns a JSX element that represents a customized System Message
    */
   renderSystemMessage(props) {
     return <SystemMessage {...props} textStyle={{ color: "#fff" }} />;
   }
+
   /**
    * Renders a customized date
+   * @function renderDay
    * @param {*} props
    * @returns a JSX element that represents a customized date
    */
+
   renderDay(props) {
     return <Day {...props} textStyle={{ color: "#fff" }} />;
   }
 
   /**
    * Renders the input toolbar if the device is online
+   * @function renderInputToolbar
    * @param {*} props
    * @returns a JSX element that represents the input toolbar
    */
@@ -269,9 +297,43 @@ class Chat extends Component {
     }
   }
 
+  /**
+   * Renders the + button in the input field that opens up a menu of choices
+   * to send images or the location of the user
+   * @function renderCustomActions
+   * @param {*} props
+   * @returns a JSX element that represents the + button
+   */
+  renderCustomActions(props) {
+    return <CustomActions {...props} />;
+  }
+
+  /**
+   * Renders a custom view based on the type of the message that was sent
+   * @function renderCustomActions
+   * @param {*} props
+   * @returns
+   */
+  renderCustomView(props) {
+    const { currentMessage } = props;
+    if (currentMessage.location) {
+      return (
+        <MapView
+          showsUserLocation={true}
+          style={{ width: 250, height: 200, borderRadius: 13, margin: 3 }}
+          region={{
+            latitude: parseInt(currentMessage.location.latitude),
+            longitude: parseInt(currentMessage.location.longitude),
+            latitudeDelta: 0.0922,
+            longitudeDelta: 0.0421,
+          }}
+  
+        />
+      );
+    }
+  }
   render() {
     const { bgColor, bgImage } = this.props.route.params;
-
     return (
       <View
         style={{
@@ -290,10 +352,11 @@ class Chat extends Component {
             renderUsernameOnMessage={true}
             renderDay={this.renderDay}
             renderInputToolbar={this.renderInputToolbar.bind(this)}
+            renderActions={this.renderCustomActions}
+            renderCustomView={this.renderCustomView}
             messages={this.state.messages}
             onSend={(messages) => this.onSend(messages)}
             user={{
-
               name: this.state.name,
               _id: this.state.user._id,
               avatar: this.state.user.avatar,
